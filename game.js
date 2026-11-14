@@ -287,7 +287,7 @@
     if (pose === 'rest') h.style.transform = 'rotate(-10deg) translate(-110px, -10px) scale(.96)';
     else if (pose === 'back') h.style.transform = 'rotate(-34deg) translate(150px, 190px) scale(1.02)';
     else if (pose === 'swing') h.style.transform = 'rotate(-4deg) translate(-380px, -180px) scale(1.12)';
-    else if (pose === 'hit') h.style.transform = 'rotate(2deg) translate(-470px, -260px) scale(1.18)';
+    else if (pose === 'hit') h.style.transform = 'rotate(2deg) translate(-400px, -210px) scale(1.06)';
     else if (pose === 'blocked') h.style.transform = 'rotate(34deg) translate(210px, 260px) scale(.94)';
   }
 
@@ -586,6 +586,7 @@
       if (r.perfect) after(120, function () { announce('MUKEMMEL!', 800); });
       else if (r.dmgFoe >= 28) after(120, function () { announce('TEMIZ TOKAT!', 800); });
       after(260, function () { crowdNoise(0.12); });
+      after(420, function () { setHand('back'); });
     });
     after(900, function () { renderOpponent('idle'); });
     after(1500, endRoundStep);
