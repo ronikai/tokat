@@ -571,8 +571,8 @@
 
   function damageFor(p) {
     if (p <= MISS_LIMIT) return 0;
-    let d = 8 + p * 20;
-    if (p > 0.955) d += 5;
+    let d = 10 + p * 22;
+    if (p > 0.955) d += 6;
     return Math.round(d);
   }
 
@@ -662,6 +662,7 @@
   }
 
   function endTurnStep() {
+    S.stats.rounds++;
     if (S.hpMe <= 0 || S.hpFoe <= 0) {
       endMatch(S.hpFoe <= 0 && S.hpMe > 0);
       return;
