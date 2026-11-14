@@ -672,6 +672,14 @@
     for (let i = 0; i < 4; i++) s += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
     return s;
   }
+
+  /* yapistirilan linkten ya da metinden 4 haneli kodu cikarir */
+  function extractCode(v) {
+    if (!v) return '';
+    const m = String(v).match(/room=([A-Za-z0-9]{4})/i);
+    if (m) return m[1].toUpperCase();
+    return String(v).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+  }
   function destroyNet() {
     try { if (conn) conn.close(); } catch (e) { }
     try { if (peer) peer.destroy(); } catch (e) { }
@@ -696,6 +704,7 @@
     S.mode = 'p2p'; S.role = 'host';
     const code = makeCode();
     $('roomCode').textContent = code;
+    $('lobbyLink').textContent = location.origin + location.pathname.replace(/index\.html$/, '') + '?room=' + code;
     $('lobbySub').textContent = 'Arkadasin bu sitede kodu girsin...';
     showScreen('screenLobby');
     setConn('oda aciliyor...');
@@ -914,28 +923,78 @@
   }
 
   /* ===========================================================
+     PANOYA KOPYALAMA (http uzerinde de calisir)
+     =========================================================== */
+  function copyText(text) {
+    return new Promise(function (resolve) {
+      let ok = false;
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0;width:1px;height:1px;';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        ta.setSelectionRange(0, text.length);
+        ok = document.execCommand('copy');
+        ta.remove();
+      } catch (e) { ok = false; }
+      if (ok) { resolve(true); return; }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text)
+          .then(function () { resolve(true); })
+          .catch(function () { resolve(false); });
+      } else {
+        resolve(false);
+      }
+    });
+  }
+
+  /* ===========================================================
      BUTONLAR
      =========================================================== */
   function bind() {
     $('btnHost').onclick = function () { audioCtx(); hostRoom(); };
     $('btnJoin').onclick = function () { audioCtx(); joinRoom($('joinCode').value); };
     $('joinCode').addEventListener('input', function (e) {
-      e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      e.target.value = extractCode(e.target.value);
+    });
+    $('joinCode').addEventListener('paste', function (e) {
+      const txt = (e.clipboardData || window.clipboardData).getData('text');
+      if (!txt) return;
+      e.preventDefault();
+      $('joinCode').value = extractCode(txt);
     });
     $('joinCode').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') joinRoom(e.target.value);
     });
     $('btnCopy').onclick = function () {
-      const code = $('roomCode').textContent;
-      let txt = code;
-      if (location.protocol.startsWith('http')) {
-        txt = location.origin + location.pathname.replace(/index\.html$/, '') + '?room=' + code;
-      }
-      navigator.clipboard.writeText(txt).then(function () {
-        $('lobbySub').textContent = 'kopyalandi! arkadasina gonder.';
-        play('click', 0.5);
-      }).catch(function () { });
+      const code = $('roomCode').textContent.trim();
+      copyText(code).then(function (ok) {
+        if (ok) {
+          $('lobbySub').textContent = 'kopyalandi: ' + code + ' - arkadasin KATIL kutusuna yapistirsin.';
+          play('click', 0.5);
+        } else {
+          $('lobbySub').textContent = 'kopyalanamadi, kodu elle sec: ' + code;
+          play('error', 0.5);
+        }
+      });
     };
+    $('btnCopyLink').onclick = function () {
+      const code = $('roomCode').textContent.trim();
+      const link = location.origin + location.pathname.replace(/index\.html$/, '') + '?room=' + code;
+      copyText(link).then(function (ok) {
+        $('lobbySub').textContent = ok ? ('link kopyalandi: ' + link) : ('kopyalanamadi: ' + link);
+        if (!ok) play('error', 0.5);
+      });
+    };
+    $('roomCode').addEventListener('click', function () {
+      const r = document.createRange();
+      r.selectNodeContents(this);
+      const sel = window.getSelection();
+      sel.removeAllRanges(); sel.addRange(r);
+    });
     $('btnCancel').onclick = function () {
       destroyNet(); S.mode = null; S.role = null;
       showScreen('screenTitle');
