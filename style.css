@@ -269,7 +269,7 @@ body { cursor: crosshair; }
    HUD
    ========================================================== */
 .hud { position: absolute; inset: 0; pointer-events: none; z-index: 30; }
-.hud.off .fighter, .hud.off .round-badge, .hud.off .meter { opacity: 0 !important; }
+.hud.off .fighter, .hud.off .round-badge, .hud.off .turn-badge, .hud.off .meter { opacity: 0 !important; }
 .hud .fighter, .hud .round-badge { transition: opacity .3s; }
 
 .fighter { position: absolute; top: 22px; width: 470px; }
@@ -325,6 +325,19 @@ body { cursor: crosshair; }
 }
 .round-badge.show { opacity: 1; }
 
+.turn-badge {
+  position: absolute; left: 50%; top: 74px; transform: translateX(-50%);
+  font-family: 'Pixel'; font-size: 26px; letter-spacing: 3px;
+  padding: 8px 26px; white-space: nowrap;
+  background: #14102a;
+  border: 3px solid #443668;
+  box-shadow: 0 0 0 3px #0a0710, 0 10px 26px rgba(0, 0, 0, .6);
+  opacity: 0; transition: opacity .25s, color .25s, border-color .25s;
+}
+.turn-badge.show { opacity: 1; }
+.turn-badge.mine { color: #7bf0a0; border-color: #3d7a55; text-shadow: 0 0 18px rgba(90, 230, 140, .5); }
+.turn-badge.theirs { color: #ff8a7a; border-color: #7a3d3d; text-shadow: 0 0 18px rgba(255, 90, 70, .45); }
+
 /* --- guc bari --- */
 .meter {
   position: absolute; left: 50%; bottom: 40px; transform: translate(-50%, 26px);
@@ -354,10 +367,33 @@ body { cursor: crosshair; }
 }
 .meter-zone {
   position: absolute; inset: 0;
-  background: linear-gradient(90deg,
-    #8e2233 0%, #c2552a 14%, #dd8a2a 27%, #e8c451 40%, #57c47f 50%,
-    #e8c451 60%, #dd8a2a 73%, #c2552a 86%, #8e2233 100%);
+  background: linear-gradient(90deg, #8e2233 0%, #c2552a 25%, #e8c451 40%, #57c47f 50%, #e8c451 60%, #c2552a 75%, #8e2233 100%);
   opacity: .62;
+  transition: background .25s;
+}
+
+/* rakibin eli: ekranin onunden sana dogru gelir */
+.foe-hand {
+  position: absolute; left: 50%; top: -6%;
+  width: 880px; height: 880px;
+  object-fit: contain; object-position: top center;
+  transform: translate(-50%, -40%) scale(.55);
+  opacity: 0; pointer-events: none; z-index: 18;
+  filter: drop-shadow(0 26px 40px rgba(0, 0, 0, .85));
+}
+.foe-hand.strike { animation: foeStrike .62s cubic-bezier(.2, .8, .3, 1) forwards; }
+@keyframes foeStrike {
+  0%   { opacity: 0; transform: translate(-50%, -45%) scale(.5) rotate(-10deg); }
+  35%  { opacity: 1; transform: translate(-50%, -18%) scale(.95) rotate(-3deg); }
+  70%  { opacity: 1; transform: translate(-50%, 2%) scale(1.12) rotate(3deg); }
+  100% { opacity: 0; transform: translate(-50%, 22%) scale(1.28) rotate(7deg); }
+}
+
+.abroad-tag {
+  position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%);
+  margin-bottom: 6px; white-space: nowrap;
+  font-family: 'Pixel'; font-size: 12px; letter-spacing: 1px;
+  color: #9fd0ff; text-shadow: 0 2px 0 #000;
 }
 .meter-ticks {
   position: absolute; inset: 0;

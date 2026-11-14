@@ -12,8 +12,18 @@
   const pick = function (arr) { return arr[Math.floor(Math.random() * arr.length)]; };
 
   const MAX_HP = 100;
+  const MISS_LIMIT = 0.08;
+
+  /* guc derecesi -> isim/renk */
+  function powerZone(p) {
+    if (p >= 0.8) return { name: 'MERKEZ', color: '#6ef08a' };
+    if (p >= 0.55) return { name: 'IYI', color: '#ffd76a' };
+    if (p >= 0.25) return { name: 'ZAYIF', color: '#ffa94d' };
+    return { name: 'KENAR', color: '#ff6b5a' };
+  }
+
   const SWEEP_BASE = 1750;
-  const SWEEP_STEP = 0.93;
+  const SWEEP_STEP = 0.9;
   const LOCK_TIMEOUT = 6500;
   const PREFIX = 'tokatbar-v1-';
   const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -129,6 +139,7 @@
     hpMe: MAX_HP,
     hpFoe: MAX_HP,
     round: 0,
+    target: 0.5,
     sweepStart: 0,
     sweepPeriod: SWEEP_BASE,
     phase: 'idle',
@@ -293,6 +304,18 @@
     else if (pose === 'blocked') h.style.transform = 'rotate(34deg) translate(210px, 260px) scale(.94)';
   }
 
+  /* rakip vurdugunda onun eli ekranin onunden gelir */
+  function strikeFoeHand() {
+    const h = S.foeHand ? ASSETS.handById[S.foeHand] : null;
+    if (!h) return;
+    const img = $('foeHand');
+    img.src = h.img;
+    img.classList.remove('strike');
+    void img.offsetWidth;
+    img.classList.add('strike');
+    setTimeout(function () { img.classList.remove('strike'); }, 740);
+  }
+
   function shake() {
     const st = $('stage');
     st.classList.remove('shake');
@@ -405,6 +428,8 @@
     $('meterPct').style.color = '';
     $('meterHint').textContent = 'FARE ILE TIKLA VE KILITLE';
     $('meterNeedle').style.left = '50%';
+    $('meterZone').style.background = zoneGradient(S.target);
+    $('meterCenter').style.left = (S.target * 100) + '%';
   }
   function meterLocked(power) {
     $('meter').classList.add('locked');
@@ -424,6 +449,7 @@
     const el = $('meterAbroad');
     el.style.left = (v * 100) + '%';
     el.classList.add('show');
+    $('abroadTag').textContent = (S.foeName || 'RAKIP') + ' %' + Math.round(powerFromV(v) * 100);
   }
 
   /* ===========================================================
@@ -443,39 +469,69 @@
     $('roundBadge').classList.remove('show');
   }
 
-  function startMatch() {
+  function startMatch(turn, target) {
     readName();
+    S.target = (typeof target === 'number' && target > 0 && target < 1) ? target : newTarget();
     resetMatch();
     renderHand();
     renderOpponent('idle');
     showScreen(null);
     $('roundBadge').classList.add('show');
     S.phase = 'countdown';
-    nextRound();
+    nextRound(turn || 'host', S.target);
   }
 
-  function nextRound() {
+  function setTurnBadge() {
+    const el = $('turnBadge');
+    el.textContent = S.turnIsMine ? 'SIRA SENDE' : 'SIRA RAKİPTE';
+    el.classList.remove('mine', 'theirs');
+    el.classList.add(S.turnIsMine ? 'mine' : 'theirs');
+    el.classList.add('show');
+  }
+
+  function nextRound(turn, target) {
     if (S.phase === 'over') return;
+    S.turn = (turn === 'guest') ? 'guest' : 'host';
+    S.turnIsMine = (S.turn === S.role);
+    S.target = (typeof target === 'number' && target > 0 && target < 1) ? target : newTarget();
     S.round++;
     $('roundBadge').textContent = 'ROUND ' + S.round;
     $('roundBadge').classList.add('show');
     meterReset();
     meterShow(false);
     S.myLock = S.foeLock = null;
+    S.foeV = null;
     S.phase = 'countdown';
     renderOpponent('idle');
     setHand('rest');
+    setTurnBadge();
 
-    announce('ROUND ' + S.round, 900);
+    announce('ROUND ' + S.round, 850);
     play('bong', 0.45);
-    after(950, function () {
+    after(900, function () {
       if (S.phase !== 'countdown') return;
-      announce('VUR!', 600);
-      startSweep();
+      if (S.turnIsMine) {
+        startSweep();
+      } else {
+        announce('RAKIP VURUYOR', 800);
+        S.phase = 'waitfoe';
+        $('meterHint').textContent = 'rakip vuruyor...';
+        if (S.mode === 'solo') {
+          after(rnd(1100, 2200), function () {
+            if (S.phase !== 'waitfoe') return;
+            const bp = botPower(S.round);
+            const maxD = Math.max(S.target, 1 - S.target);
+            const dir = Math.random() < 0.5 ? -1 : 1;
+            const bv = clamp(S.target + dir * (1 - bp) * maxD, 0, 1);
+            foeAttack(bp, bv, damageFor(bp));
+          });
+        }
+      }
     });
   }
 
   function startSweep() {
+    if (!S.turnIsMine) return;
     S.phase = 'sweep';
     S.sweepPeriod = SWEEP_BASE * Math.pow(SWEEP_STEP, S.round - 1);
     S.sweepStart = performance.now();
@@ -483,14 +539,6 @@
     meterReset();
     play('tick', 0.3);
     after(LOCK_TIMEOUT, function () { if (S.phase === 'sweep') lockNow(); });
-    if (S.mode === 'solo') {
-      after(rnd(1000, 2600), function () {
-        if (S.foeLock != null) return;
-        if (S.phase !== 'sweep' && S.phase !== 'locked') return;
-        S.foeLock = botPower(S.round);
-        tryResolve();
-      });
-    }
   }
   function botPower(round) {
     return clamp(rnd(0.3, 0.84) + Math.min(round, 6) * 0.012, 0.05, 0.99);
@@ -501,107 +549,63 @@
     const x = ((t % S.sweepPeriod) / S.sweepPeriod);
     return x < 0.5 ? x * 2 : 2 - x * 2;
   }
-  function powerFromV(v) { return 1 - Math.abs(v - 0.5) * 2; }
+  /* hedef her raunt rastgele bir yerde: merkez sart degil */
+  function newTarget() {
+    return rnd(0.2, 0.8);
+  }
+  function powerFromV(v) {
+    const maxD = Math.max(S.target, 1 - S.target);
+    return clamp(1 - Math.abs(v - S.target) / maxD, 0, 1);
+  }
+  function zoneGradient(t) {
+    const g = Math.round(t * 100);
+    const a = Math.round(g * 0.35);
+    const b = Math.round(g * 0.62);
+    const c = Math.round(g * 0.82);
+    const d = Math.round(g + (100 - g) * 0.18);
+    const e = Math.round(g + (100 - g) * 0.38);
+    const f = Math.round(g + (100 - g) * 0.65);
+    return 'linear-gradient(90deg,#8e2233 0%,#b8452a ' + a + '%,#dd8a2a ' + b + '%,#e8c451 ' + c +
+      '%,#57c47f ' + g + '%,#e8c451 ' + d + '%,#dd8a2a ' + e + '%,#b8452a ' + f + '%,#8e2233 100%)';
+  }
+
+  function damageFor(p) {
+    if (p <= MISS_LIMIT) return 0;
+    let d = 8 + p * 20;
+    if (p > 0.955) d += 5;
+    return Math.round(d);
+  }
 
   function lockNow() {
-    if (S.phase !== 'sweep') return;
-    const v = S._needleV == null ? 0.5 : S._needleV;
+    if (S.phase !== 'sweep' || !S.turnIsMine) return;
+    const v = S._needleV == null ? S.target : S._needleV;
     const p = powerFromV(v);
     S.myLock = p;
-    S.phase = 'locked';
-    meterLocked(p);
-    play('click', 0.55);
-    whoosh(0.16, 0.08);
-    netSend({ t: 'lock', p: p });
-    $('meterHint').textContent = S.foeLock == null ? 'rakibin bekleniyor...' : 'TOKAT!';
-    tryResolve();
-  }
-
-  function tryResolve() {
-    if (S.myLock == null || S.foeLock == null) return;
-    if (S.phase === 'resolve' || S.phase === 'over') return;
     S.phase = 'resolve';
     clearTimers();
-    if (S.mode === 'p2p' && S.role === 'guest') return;
-
-    const r = computeResult(S.myLock, S.foeLock);
-    applyResult(r);
-    if (S.mode === 'p2p' && S.role === 'host') {
-      netSend({ t: 'result', p0: S.myLock, p1: S.foeLock, d0: r.dmgMe, d1: r.dmgFoe, tie: r.tie, perfect: r.perfect });
-    }
+    meterLocked(p);
+    play('click', 0.55);
+    const dmg = damageFor(p);
+    netSend({ t: 'attack', p: p, v: v, dmg: dmg, n: S.myName });
+    myAttack(p, dmg);
   }
 
-  /* derece: 0 = en uzak (kenar), 1 = tam merkez */
-  function powerZone(p) {
-    if (p >= 0.8) return { name: 'MERKEZ', color: '#6ef08a' };
-    if (p >= 0.55) return { name: 'IYI', color: '#ffd76a' };
-    if (p >= 0.25) return { name: 'ZAYIF', color: '#ffa94d' };
-    return { name: 'KENAR', color: '#ff6b5a' };
-  }
-  const MISS_LIMIT = 0.08;
-
-  function computeResult(p, q) {
-    const diff = p - q;
-    /* en uzak noktaya vurduysan iska: hasar yok, sira rakibe gecer */
-    if (p <= MISS_LIMIT && q <= MISS_LIMIT) return { miss: true, dmgMe: 0, dmgFoe: 0, tie: false, perfect: false, diff: diff };
-    if (p <= MISS_LIMIT) return { miss: true, missMe: true, dmgMe: 0, dmgFoe: 0, tie: false, perfect: false, diff: diff };
-    if (q <= MISS_LIMIT) return { miss: true, missMe: false, dmgMe: 0, dmgFoe: 0, tie: false, perfect: false, diff: diff };
-    if (Math.abs(diff) < 0.012) return { dmgMe: 0, dmgFoe: 0, tie: true, perfect: false, diff: diff };
-    const winner = diff > 0 ? p : q;
-    const perfect = winner > 0.955;
-    let dmg = 8 + winner * 18 + Math.abs(diff) * 8;
-    if (perfect) dmg += 5;
-    dmg = Math.round(dmg);
-    if (diff > 0) return { dmgMe: 0, dmgFoe: dmg, tie: false, perfect: perfect, diff: diff };
-    return { dmgMe: dmg, dmgFoe: 0, tie: false, perfect: perfect, diff: diff };
-  }
-
-  function applyResult(r) {
-    S.lastResult = r;
-    S.stats.rounds++;
-    meterShowFoe(S.foeLock);
-    S.phase = 'resolve';
-
-    after(320, function () {
-      if (r.miss) {
-        announce(r.missMe ? 'ISKA! SIRA RAKIBE GECTI' : 'RAKIP ISKALADI', 1000);
-        setHand('blocked');
-        whoosh(0.3, 0.12);
-        after(180, function () {
-          shake();
-          play('hit_soft', 0.5);
-          crowdJolt();
-        });
-        after(1500, endRoundStep);
-        return;
-      }
-      if (r.tie) {
-        announce('KAFE KAFEYE', 900);
-        setHand('back');
-        whoosh(0.3, 0.15);
-        after(240, function () {
-          setHand('swing');
-          flash('white');
-          shake();
-          play('hit_soft', 0.65);
-          stars(800, 400);
-          crowdJolt();
-        });
-        after(1500, endRoundStep);
-        return;
-      }
-      if (r.dmgFoe > 0) iHit(); else iTakeHit();
-    });
-  }
-
-  function iHit() {
-    const r = S.lastResult;
+  /* ben vuruyorum */
+  function myAttack(p, dmg) {
     setHand('back');
-    after(160, function () {
-      setHand('swing');
-      swooshFx();
-      whoosh(0.22, 0.2);
-    });
+    if (dmg <= 0) {
+      announce('ISKA!', 900);
+      whoosh(0.32, 0.14);
+      after(180, function () {
+        setHand('blocked');
+        play('hit_soft', 0.45);
+        shake();
+        crowdJolt();
+      });
+      after(1400, endTurnStep);
+      return;
+    }
+    after(150, function () { setHand('swing'); swooshFx(); whoosh(0.22, 0.2); });
     after(330, function () {
       setHand('hit');
       shake();
@@ -614,40 +618,50 @@
       setTimeout(function () { op.style.transform = ''; }, 720);
       stars(790, 380);
       crowdJolt();
-      floater('-' + r.dmgFoe, 800, 350);
-      setHp('foe', S.hpFoe - r.dmgFoe);
+      floater('-' + dmg, 800, 350);
+      setHp('foe', S.hpFoe - dmg);
       S.stats.hits++;
-      S.stats.best = Math.max(S.stats.best, r.dmgFoe);
-      if (r.perfect) after(120, function () { announce('MUKEMMEL!', 800); });
-      else if (r.dmgFoe >= 28) after(120, function () { announce('TEMIZ TOKAT!', 800); });
+      S.stats.best = Math.max(S.stats.best, dmg);
+      if (p > 0.955) announce('MUKEMMEL!', 800);
+      else if (dmg >= 26) announce('TEMIZ TOKAT!', 800);
       after(260, function () { crowdNoise(0.12); });
       after(420, function () { setHand('back'); });
     });
     after(900, function () { renderOpponent('idle'); });
-    after(1500, endRoundStep);
+    after(1400, endTurnStep);
   }
 
-  function iTakeHit() {
-    const r = S.lastResult;
-    setHand('back');
-    after(140, function () {
+  /* rakip vuruyor */
+  function foeAttack(p, v, dmg) {
+    S.phase = 'resolve';
+    clearTimers();
+    S.foeV = v;
+    meterShowFoe(v);
+    $('meterHint').textContent = 'rakip vurdu';
+    if (dmg <= 0) {
+      announce('RAKIP ISKALADI', 950);
+      whoosh(0.3, 0.1);
+      after(1400, endTurnStep);
+      return;
+    }
+    strikeFoeHand();
+    after(150, function () {
       shake();
       flash('red');
       play(pick(SLAPS), 1, rnd(0.9, 1));
       play('glass', 0.22);
-      renderOpponent('idle');
       setHand('blocked');
-      floater('-' + r.dmgMe, 800, 350, '#ffb0a0');
-      setHp('me', S.hpMe - r.dmgMe);
+      floater('-' + dmg, 800, 350, '#ffb0a0');
+      setHp('me', S.hpMe - dmg);
       S.stats.taken++;
       crowdJolt();
       crowdNoise(0.14);
-      if (r.perfect) after(120, function () { announce('SAGLAM YEDIN', 800); });
+      if (p > 0.955) after(150, function () { announce('SAGLAM YEDIN', 800); });
     });
-    after(1500, endRoundStep);
+    after(1400, endTurnStep);
   }
 
-  function endRoundStep() {
+  function endTurnStep() {
     if (S.hpMe <= 0 || S.hpFoe <= 0) {
       endMatch(S.hpFoe <= 0 && S.hpMe > 0);
       return;
@@ -655,11 +669,13 @@
     renderOpponent('idle');
     setHand('rest');
     meterShow(false);
-    if (S.mode === 'p2p') {
-      if (S.role === 'host') after(700, function () { netSend({ t: 'next' }); nextRound(); });
-    } else {
-      after(700, nextRound);
-    }
+    if (S.mode === 'p2p' && S.role !== 'host') return;
+    after(650, function () {
+      const next = S.turn === 'host' ? 'guest' : 'host';
+      const tg = newTarget();
+      if (S.mode === 'p2p') netSend({ t: 'next', turn: next, target: tg });
+      nextRound(next, tg);
+    });
   }
 
   function endMatch(iWon) {
@@ -919,24 +935,15 @@
         S.foeChar = theirs.c; S.foeHand = theirs.h;
         if (theirs.n) S.foeName = theirs.n;
         S.myReady = false; S.foeReady = false;
-        startMatch();
+        startMatch(m.turn || 'host', m.target);
         break;
       }
-      case 'lock':
-        S.foeLock = m.p;
-        $('meterHint').textContent = S.myLock == null ? 'sira sende!' : 'TOKAT!';
-        if (S.myLock == null) $('meterHint').textContent = 'rakibin kilitledi - sira sende!';
-        tryResolve();
-        break;
-      case 'result':
-        applyResult({
-          dmgMe: S.role === 'host' ? m.d0 : m.d1,
-          dmgFoe: S.role === 'host' ? m.d1 : m.d0,
-          tie: m.tie, perfect: m.perfect, diff: 0
-        });
+      case 'attack':
+        if (m.n) S.foeName = m.n;
+        foeAttack(m.p, m.v, m.dmg);
         break;
       case 'next':
-        nextRound();
+        nextRound(m.turn, m.target);
         break;
       case 'rematch':
         S.foeWants = true;
@@ -1028,17 +1035,19 @@
     if (S.mode !== 'p2p') return;
     if (!S.myReady || !S.foeReady || !S.myChar || !S.foeChar) return;
     if (S.role !== 'host') return;
-    netSend({ t: 'fight', h: { c: S.myChar, h: S.myHand, n: S.myName }, g: { c: S.foeChar, h: S.foeHand, n: S.foeName } });
-    startMatch();
+    const tg = newTarget();
+    netSend({ t: 'fight', turn: 'host', target: tg, h: { c: S.myChar, h: S.myHand, n: S.myName }, g: { c: S.foeChar, h: S.foeHand, n: S.foeName } });
+    startMatch('host', tg);
   }
 
   function perhapsRematch() {
     if (!S.myWants || !S.foeWants) return;
     S.myWants = false; S.foeWants = false;
-    if (S.mode === 'solo' || !conn || !conn.open) { startMatch(); return; }
+    if (S.mode === 'solo' || !conn || !conn.open) { startMatch('host'); return; }
     if (S.role === 'host') {
-      netSend({ t: 'fight', h: { c: S.myChar, h: S.myHand, n: S.myName }, g: { c: S.foeChar, h: S.foeHand, n: S.foeName } });
-      startMatch();
+      const tg = newTarget();
+      netSend({ t: 'fight', turn: 'host', target: tg, h: { c: S.myChar, h: S.myHand, n: S.myName }, g: { c: S.foeChar, h: S.foeHand, n: S.foeName } });
+      startMatch('host', tg);
     }
   }
 
