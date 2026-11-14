@@ -353,8 +353,11 @@ body { cursor: crosshair; }
   overflow: hidden;
 }
 .meter-zone {
-  position: absolute; left: 50%; top: 0; bottom: 0; width: 36%; transform: translateX(-50%);
-  background: linear-gradient(180deg, rgba(232, 180, 81, .30), rgba(232, 180, 81, .07));
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg,
+    #8e2233 0%, #c2552a 14%, #dd8a2a 27%, #e8c451 40%, #57c47f 50%,
+    #e8c451 60%, #dd8a2a 73%, #c2552a 86%, #8e2233 100%);
+  opacity: .62;
 }
 .meter-ticks {
   position: absolute; inset: 0;
@@ -472,6 +475,19 @@ body { cursor: crosshair; }
 .logo-sub { display: block; margin-top: 22px; font-family: 'KenneyN'; font-size: 26px; color: rgba(242, 232, 216, .8); }
 
 .menu { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+
+.name-row { display: flex; align-items: center; gap: 10px; }
+.name-label { font-family: 'Pixel'; font-size: 15px; letter-spacing: 3px; color: var(--gold); }
+.name-row input {
+  width: 260px; text-align: center;
+  font-family: 'Kenney'; font-size: 22px; letter-spacing: 2px;
+  color: var(--cream); background: #120e22;
+  border: 3px solid #443668; outline: none;
+  padding: 8px 10px; text-transform: uppercase;
+  box-shadow: 0 0 0 3px #0a0710;
+}
+.name-row input::placeholder { color: rgba(242, 232, 216, .25); }
+.name-row input:focus { border-color: var(--gold); }
 .btn {
   position: relative; font-family: 'Kenney'; font-size: 23px; letter-spacing: 2px;
   color: var(--cream); padding: 15px 38px; min-width: 320px;

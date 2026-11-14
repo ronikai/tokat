@@ -12,7 +12,7 @@
   const pick = function (arr) { return arr[Math.floor(Math.random() * arr.length)]; };
 
   const MAX_HP = 100;
-  const SWEEP_BASE = 1500;
+  const SWEEP_BASE = 1750;
   const SWEEP_STEP = 0.93;
   const LOCK_TIMEOUT = 6500;
   const PREFIX = 'tokatbar-v1-';
@@ -116,6 +116,8 @@
     role: null,
     myChar: null,
     myHand: null,
+    myName: '',
+    foeName: '',
     foeChar: null,
     foeHand: null,
     foePicked: null,
@@ -387,8 +389,8 @@
     wrap.classList.toggle('danger', r <= 0.3);
   }
   function setNames() {
-    $('myName').textContent = S.myChar ? ASSETS.byId[S.myChar].name : 'SEN';
-    $('foeName').textContent = S.foeChar ? ASSETS.byId[S.foeChar].name : 'RAKIP';
+    $('myName').textContent = (S.myName || 'SEN').slice(0, 12);
+    $('foeName').textContent = (S.foeName || 'RAKIP').slice(0, 12);
   }
 
   /* ===========================================================
@@ -400,6 +402,7 @@
     $('meterPin').classList.remove('show');
     $('meterAbroad').classList.remove('show');
     $('meterPct').textContent = '-';
+    $('meterPct').style.color = '';
     $('meterHint').textContent = 'FARE ILE TIKLA VE KILITLE';
     $('meterNeedle').style.left = '50%';
   }
@@ -408,8 +411,14 @@
     const pin = $('meterPin');
     pin.style.left = (S._needleV * 100) + '%';
     pin.classList.add('show');
+    const z = powerZone(power);
     $('meterPct').textContent = '%' + Math.round(power * 100);
-    $('meterHint').textContent = power > 0.955 ? 'MUKEMMEL VURUS!' : power > 0.8 ? 'COK IYI!' : power > 0.55 ? 'fena degil' : 'zayif...';
+    $('meterPct').style.color = z.color;
+    $('meterHint').textContent = power <= MISS_LIMIT ? 'ISKA! sira rakibe gecer'
+      : power > 0.955 ? 'MUKEMMEL VURUS!'
+        : power > 0.8 ? 'MERKEZ - cok iyi'
+          : power > 0.55 ? 'iyi vurus'
+            : power > 0.25 ? 'zayif vurus' : 'kenar - dikkat';
   }
   function meterShowFoe(v) {
     const el = $('meterAbroad');
@@ -435,6 +444,7 @@
   }
 
   function startMatch() {
+    readName();
     resetMatch();
     renderHand();
     renderOpponent('idle');
@@ -521,8 +531,21 @@
     }
   }
 
+  /* derece: 0 = en uzak (kenar), 1 = tam merkez */
+  function powerZone(p) {
+    if (p >= 0.8) return { name: 'MERKEZ', color: '#6ef08a' };
+    if (p >= 0.55) return { name: 'IYI', color: '#ffd76a' };
+    if (p >= 0.25) return { name: 'ZAYIF', color: '#ffa94d' };
+    return { name: 'KENAR', color: '#ff6b5a' };
+  }
+  const MISS_LIMIT = 0.08;
+
   function computeResult(p, q) {
     const diff = p - q;
+    /* en uzak noktaya vurduysan iska: hasar yok, sira rakibe gecer */
+    if (p <= MISS_LIMIT && q <= MISS_LIMIT) return { miss: true, dmgMe: 0, dmgFoe: 0, tie: false, perfect: false, diff: diff };
+    if (p <= MISS_LIMIT) return { miss: true, missMe: true, dmgMe: 0, dmgFoe: 0, tie: false, perfect: false, diff: diff };
+    if (q <= MISS_LIMIT) return { miss: true, missMe: false, dmgMe: 0, dmgFoe: 0, tie: false, perfect: false, diff: diff };
     if (Math.abs(diff) < 0.012) return { dmgMe: 0, dmgFoe: 0, tie: true, perfect: false, diff: diff };
     const winner = diff > 0 ? p : q;
     const perfect = winner > 0.955;
@@ -540,6 +563,18 @@
     S.phase = 'resolve';
 
     after(320, function () {
+      if (r.miss) {
+        announce(r.missMe ? 'ISKA! SIRA RAKIBE GECTI' : 'RAKIP ISKALADI', 1000);
+        setHand('blocked');
+        whoosh(0.3, 0.12);
+        after(180, function () {
+          shake();
+          play('hit_soft', 0.5);
+          crowdJolt();
+        });
+        after(1500, endRoundStep);
+        return;
+      }
       if (r.tie) {
         announce('KAFE KAFEYE', 900);
         setHand('back');
@@ -657,6 +692,48 @@
      =========================================================== */
   let peer = null, conn = null;
 
+  /* http:// ile acildiysa (yerel sunucu) dogrudan WebSocket kullanilir:
+     internet gerekmez, ayni modemdeki iki bilgisayar eslesir.
+     https:// (surge / github) ise PeerJS + STUN kullanilir. */
+  const USE_WS = location.protocol === 'http:' && !!location.host;
+
+  function wsConnect(code, isHost) {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    let ws;
+    try { ws = new WebSocket(proto + '//' + location.host + '/ws'); }
+    catch (e) { ws = null; }
+    const L = { open: [], data: [], close: [], error: [] };
+    const c = {
+      open: false,
+      send: function (obj) {
+        if (ws && ws.readyState === 1) { try { ws.send(JSON.stringify(obj)); } catch (e) { } }
+      },
+      on: function (ev, cb) { (L[ev] || (L[ev] = [])).push(cb); },
+      close: function () { try { if (ws) ws.close(); } catch (e) { } }
+    };
+    function fire(ev, arg) { (L[ev] || []).forEach(function (f) { f(arg); }); }
+    if (!ws) { setTimeout(function () { fire('error', 'noserver'); }, 0); return c; }
+
+    ws.onopen = function () {
+      ws.send(JSON.stringify(isHost ? { t: 'create', room: code } : { t: 'join', room: code }));
+    };
+    ws.onmessage = function (ev) {
+      let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (!m || !m.t) return;
+      if (m.t === '__wait') { setConn('oda hazir: ' + code, 'ok'); return; }
+      if (m.t === '__ready') {
+        if (!c.open) { c.open = true; fire('open'); }
+        return;
+      }
+      if (m.t === '__error') { c.failCode = m.code; fire('error', m.code); return; }
+      if (m.t === '__peer-left') { c.open = false; fire('close'); return; }
+      fire('data', m);
+    };
+    ws.onclose = function () { if (c.open) { c.open = false; fire('close'); } };
+    ws.onerror = function () { fire('error', 'noserver'); };
+    return c;
+  }
+
   function setConn(text, cls) {
     $('connText').textContent = text;
     const el = $('conn');
@@ -680,6 +757,14 @@
     if (m) return m[1].toUpperCase();
     return String(v).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
   }
+
+  function readName() {
+    const el = $('nameInput');
+    const v = el ? el.value.trim().slice(0, 12) : '';
+    S.myName = v.toUpperCase() || 'OYUNCU';
+    try { localStorage.setItem('tokat-name', v); } catch (e) { }
+    setNames();
+  }
   function destroyNet() {
     try { if (conn) conn.close(); } catch (e) { }
     try { if (peer) peer.destroy(); } catch (e) { }
@@ -699,7 +784,7 @@
   }
 
   function hostRoom() {
-    if (typeof Peer === 'undefined') { alert('Baglanti kutuphanesi yuklenemedi (peerjs.min.js).'); return; }
+    if (!USE_WS && typeof Peer === 'undefined') { alert('Baglanti kutuphanesi yuklenemedi (peerjs.min.js).'); return; }
     destroyNet();
     S.mode = 'p2p'; S.role = 'host';
     const code = makeCode();
@@ -708,6 +793,19 @@
     $('lobbySub').textContent = 'Arkadasin bu sitede kodu girsin...';
     showScreen('screenLobby');
     setConn('oda aciliyor...');
+
+    if (USE_WS) {
+      conn = wsConnect(code, true);
+      conn.on('error', function (c) {
+        setConn('oda acilamadi', 'bad');
+        $('lobbySub').textContent = c === 'taken'
+          ? 'Bu kod doldu, tekrar dene.'
+          : 'Sunucuya baglanilamadi. start.bat calisiyor mu?';
+      });
+      wireConn();
+      return;
+    }
+
     peer = new Peer(PREFIX + code, peerOpts());
     peer.on('open', function () { setConn('oda hazir: ' + code, 'ok'); play('bong', 0.35); });
     peer.on('connection', function (c) {
@@ -721,7 +819,7 @@
   }
 
   function joinRoom(code) {
-    if (typeof Peer === 'undefined') { alert('Baglanti kutuphanesi yuklenemedi.'); return; }
+    if (!USE_WS && typeof Peer === 'undefined') { alert('Baglanti kutuphanesi yuklenemedi.'); return; }
     code = (code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (code.length !== 4) { play('error', 0.6); $('joinCode').focus(); return; }
     destroyNet();
@@ -730,6 +828,20 @@
     $('lobbySub').textContent = 'odaya baglaniyor...';
     showScreen('screenLobby');
     setConn('baglaniyor...');
+
+    if (USE_WS) {
+      conn = wsConnect(code, false);
+      conn.on('error', function (c) {
+        setConn('oda bulunamadi', 'bad');
+        $('lobbySub').textContent = c === 'full'
+          ? 'Oda dolu.'
+          : 'Oda bulunamadi. Kodu kontrol et.';
+        play('error', 0.6);
+      });
+      wireConn();
+      return;
+    }
+
     peer = new Peer(null, peerOpts());
     peer.on('open', function () {
       conn = peer.connect(PREFIX + code, { reliable: true });
@@ -751,7 +863,7 @@
     conn.on('open', function () {
       setConn('bagli', 'ok');
       play('select', 0.55);
-      conn.send({ t: 'hello', role: S.role });
+      conn.send({ t: 'hello', role: S.role, name: S.myName });
       if (S.role === 'host') {
         after(200, function () {
           showScreen('screenSelect');
@@ -780,9 +892,12 @@
     if (!m || !m.t) return;
     switch (m.t) {
       case 'hello':
+        if (m.name) S.foeName = m.name;
+        setNames();
         if (S.role === 'guest') { showScreen('screenSelect'); buildCards(); }
         break;
       case 'char':
+        if (m.n) S.foeName = m.n;
         S.foePicked = m.char;
         S.foeHandPicked = m.hand || null;
         S.foeReady = false;
@@ -790,18 +905,23 @@
         syncReady();
         break;
       case 'ready':
+        if (m.n) S.foeName = m.n;
         S.foePicked = m.char; S.foeChar = m.char;
         S.foeHand = m.hand || null;
         S.foeReady = true;
         updateCards();
         syncReady();
         break;
-      case 'fight':
-        if (S.role === 'guest') { S.myChar = m.g.c; S.myHand = m.g.h; S.foeChar = m.h.c; S.foeHand = m.h.h; }
-        else { S.myChar = m.h.c; S.myHand = m.h.h; S.foeChar = m.g.c; S.foeHand = m.g.h; }
+      case 'fight': {
+        const mine = S.role === 'guest' ? m.g : m.h;
+        const theirs = S.role === 'guest' ? m.h : m.g;
+        S.myChar = mine.c; S.myHand = mine.h;
+        S.foeChar = theirs.c; S.foeHand = theirs.h;
+        if (theirs.n) S.foeName = theirs.n;
         S.myReady = false; S.foeReady = false;
         startMatch();
         break;
+      }
       case 'lock':
         S.foeLock = m.p;
         $('meterHint').textContent = S.myLock == null ? 'sira sende!' : 'TOKAT!';
@@ -847,7 +967,7 @@
         updateCards();
         renderHand();
         $('btnReady').disabled = false;
-        netSend({ t: 'char', char: c.id, hand: S.myHand });
+        netSend({ t: 'char', char: c.id, hand: S.myHand, n: S.myName });
         syncReady();
       };
       wrap.appendChild(el);
@@ -866,7 +986,7 @@
         play('select', 0.5);
         updateCards();
         renderHand();
-        netSend({ t: 'char', char: S.myChar, hand: h.id });
+        netSend({ t: 'char', char: S.myChar, hand: h.id, n: S.myName });
       };
       hw.appendChild(el);
     });
@@ -908,7 +1028,7 @@
     if (S.mode !== 'p2p') return;
     if (!S.myReady || !S.foeReady || !S.myChar || !S.foeChar) return;
     if (S.role !== 'host') return;
-    netSend({ t: 'fight', h: { c: S.myChar, h: S.myHand }, g: { c: S.foeChar, h: S.foeHand } });
+    netSend({ t: 'fight', h: { c: S.myChar, h: S.myHand, n: S.myName }, g: { c: S.foeChar, h: S.foeHand, n: S.foeName } });
     startMatch();
   }
 
@@ -917,7 +1037,7 @@
     S.myWants = false; S.foeWants = false;
     if (S.mode === 'solo' || !conn || !conn.open) { startMatch(); return; }
     if (S.role === 'host') {
-      netSend({ t: 'fight', h: { c: S.myChar, h: S.myHand }, g: { c: S.foeChar, h: S.foeHand } });
+      netSend({ t: 'fight', h: { c: S.myChar, h: S.myHand, n: S.myName }, g: { c: S.foeChar, h: S.foeHand, n: S.foeName } });
       startMatch();
     }
   }
@@ -955,8 +1075,17 @@
      BUTONLAR
      =========================================================== */
   function bind() {
-    $('btnHost').onclick = function () { audioCtx(); hostRoom(); };
-    $('btnJoin').onclick = function () { audioCtx(); joinRoom($('joinCode').value); };
+    const nameEl = $('nameInput');
+    nameEl.addEventListener('input', function () {
+      const v = nameEl.value.trim().slice(0, 12);
+      S.myName = v.toUpperCase() || 'OYUNCU';
+      try { localStorage.setItem('tokat-name', v); } catch (e) { }
+      setNames();
+    });
+    nameEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') nameEl.blur(); });
+
+    $('btnHost').onclick = function () { audioCtx(); readName(); hostRoom(); };
+    $('btnJoin').onclick = function () { audioCtx(); readName(); joinRoom($('joinCode').value); };
     $('joinCode').addEventListener('input', function (e) {
       e.target.value = extractCode(e.target.value);
     });
@@ -1015,7 +1144,7 @@
         after(280, startMatch);
         return;
       }
-      netSend({ t: 'ready', char: S.myChar, hand: S.myHand });
+      netSend({ t: 'ready', char: S.myChar, hand: S.myHand, n: S.myName });
       syncReady();
     };
     $('btnSolo').onclick = function () {
@@ -1079,6 +1208,7 @@
       $('meterNeedle').style.left = (v * 100) + '%';
       const p = powerFromV(v);
       $('meterPct').textContent = '%' + Math.round(p * 100);
+      $('meterPct').style.color = powerZone(p).color;
       if (p > 0.988 && (lastV == null || lastV < 0.988)) play('tick', 0.1, 1.7);
       lastV = p;
     }
@@ -1093,6 +1223,11 @@
     bind();
     fit();
     window.addEventListener('resize', fit);
+    try {
+      const saved = localStorage.getItem('tokat-name');
+      if (saved) $('nameInput').value = saved;
+    } catch (e) { }
+    readName();
     showScreen('screenTitle');
     setConn('hazir');
     setNames();
