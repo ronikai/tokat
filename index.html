@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#12101f">
+<title>TOKAT BAR — 1v1 tokat düellosu</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='8' fill='%2312101f'/%3E%3Crect x='10' y='14' width='44' height='10' fill='%23e8b451'/%3E%3Crect x='18' y='30' width='28' height='8' fill='%23e04b4b'/%3E%3Crect x='10' y='44' width='44' height='10' fill='%235a4a8a'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+
+    <!-- ============ SAHNE ============ -->
+    <div class="scene">
+      <div class="wall"></div>
+      <div class="pixelstars" id="pixelstars"></div>
+
+      <div class="shelf shelf-l" id="shelfL"></div>
+      <div class="shelf shelf-r" id="shelfR"></div>
+
+      <div class="spot spot-1"></div>
+      <div class="spot spot-2"></div>
+      <div class="haze"></div>
+
+      <div class="audience-row" id="audienceFar"></div>
+      <div class="audience-row" id="audience"></div>
+
+      <div class="opponent" id="opponent"></div>
+
+      <div class="counter-shelf" id="counterShelf"></div>
+      <div class="counter"></div>
+      <div class="counter-lip"></div>
+
+      <div class="fg fg-l" id="fgLeft"></div>
+      <div class="fg fg-r" id="fgRight"></div>
+
+      <div class="hand" id="hand"></div>
+      <div class="fx" id="fx"></div>
+      <div class="vignette"></div>
+      <div class="grain"></div>
+      <div class="flash" id="flash"></div>
+    </div>
+
+    <!-- ============ HUD ============ -->
+    <div class="hud" id="hud">
+
+      <div class="fighter hp-me">
+        <div class="fighter-top">
+          <span class="fighter-name" id="myName">SEN</span>
+          <span class="fighter-hp" id="myHpText">100</span>
+        </div>
+        <div class="hp-track"><div class="hp-ghost" id="myHpGhost"></div><div class="hp-fill" id="myHpFill"></div></div>
+      </div>
+
+      <div class="fighter hp-foe">
+        <div class="fighter-top">
+          <span class="fighter-name" id="foeName">RAKIP</span>
+          <span class="fighter-hp" id="foeHpText">100</span>
+        </div>
+        <div class="hp-track"><div class="hp-ghost" id="foeHpGhost"></div><div class="hp-fill" id="foeHpFill"></div></div>
+      </div>
+
+      <div class="round-badge" id="roundBadge">ROUND 1</div>
+
+      <div class="meter" id="meter">
+        <div class="meter-title"><span>TOKAT GUCU</span><span class="meter-pct" id="meterPct">-</span></div>
+        <div class="meter-track" id="meterTrack">
+          <div class="meter-zone"></div>
+          <div class="meter-ticks"></div>
+          <div class="meter-center"></div>
+          <div class="meter-abroad" id="meterAbroad"></div>
+          <div class="meter-pin" id="meterPin"></div>
+          <div class="meter-needle" id="meterNeedle"></div>
+        </div>
+        <div class="meter-foot">
+          <span id="meterHint">FARE ILE TIKLA VE KILITLE</span>
+        </div>
+      </div>
+
+      <div class="announce" id="announce"></div>
+      <div class="floaters" id="floaters"></div>
+
+      <div class="conn" id="conn"><span class="dot"></span><span id="connText">hazir</span></div>
+    </div>
+
+    <!-- ============ EKRANLAR ============ -->
+    <div class="screen show" id="screenTitle">
+      <div class="title-fighters">
+        <img src="img/p6.png" class="tf-left" alt="">
+        <img src="img/p1.png" class="tf-right" alt="">
+      </div>
+      <div class="title-wrap">
+        <div class="logo">
+          <span class="logo-top">BAR</span>
+          <h1>TOKAT</h1>
+          <span class="logo-sub">en ortaya vuran daha sert vurur</span>
+        </div>
+
+        <div class="menu">
+          <button class="btn btn-primary" id="btnHost">ODA KUR<small>arkadasin kod ile katilsin</small></button>
+          <div class="join-row">
+            <input id="joinCode" maxlength="4" placeholder="KOD" autocomplete="off" spellcheck="false">
+            <button class="btn" id="btnJoin">KATIL</button>
+          </div>
+          <button class="btn btn-ghost" id="btnSolo">TEK BASINA DENE</button>
+        </div>
+
+        <div class="hintline">
+          <b>Nasil oynanir:</b> Igne barin uzerinde salinir - <b>tikladigin an</b> kilitlenir.
+          Merkeze ne kadar yakinsan o kadar sert tokat atarsin. Karsinda rakibin duruyor; canini bitiren kaybeder.
+        </div>
+        <div class="credit">karakterler ve eller: pixel-art set - sesler ve font: Kenney</div>
+      </div>
+    </div>
+
+    <div class="screen" id="screenLobby">
+      <div class="lobby">
+        <div class="lobby-label">ODA KODU</div>
+        <div class="code" id="roomCode">----</div>
+        <div class="lobby-sub" id="lobbySub">Arkadasin bu sitede kodu girsin...</div>
+        <button class="btn btn-ghost" id="btnCopy">KODU KOPYALA</button>
+        <button class="btn btn-ghost small" id="btnCancel">VAZGEC</button>
+      </div>
+    </div>
+
+    <div class="screen" id="screenSelect">
+      <div class="select-wrap">
+        <div class="banner"><span>SERT TOKATCILAR - LIG A</span></div>
+        <div class="cards" id="cards"></div>
+        <div class="hands-head">SAG EL VARLARI</div>
+        <div class="hands" id="hands"></div>
+        <div class="select-foot">
+          <div class="picked" id="myPick">-</div>
+          <button class="btn btn-primary small" id="btnReady" disabled>HAZIRIM</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen" id="screenOver">
+      <div class="over-wrap">
+        <div class="over-tag" id="overTag">KAZANDIN</div>
+        <h2 id="overTitle">TOKAT KRALI</h2>
+        <div class="over-sub" id="overSub">bar senin</div>
+        <div class="over-stats" id="overStats"></div>
+        <img id="overFoe" class="over-foe" alt="">
+        <button class="btn btn-primary" id="btnRematch">TEKRAR OYNA</button>
+        <button class="btn btn-ghost small" id="btnMenu">ANA MENU</button>
+      </div>
+    </div>
+
+    <button class="fs" id="btnFs" title="Tam ekran (F)">⛶</button>
+  </div>
+</div>
+
+<script src="peerjs.min.js"></script>
+<script src="assets.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
