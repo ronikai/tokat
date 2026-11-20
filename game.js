@@ -610,6 +610,7 @@
       setHand('hit');
       shake();
       flash('white');
+      buzz(70);
       play(pick(SLAPS), 0.9, rnd(0.96, 1.05));
       after(70, function () { play('glass', 0.16); });
       renderOpponent('hit');
@@ -645,6 +646,7 @@
       return;
     }
     strikeFoeHand();
+    buzz([50, 60, 40]);
     after(150, function () {
       shake();
       flash('red');
@@ -1186,9 +1188,13 @@
 
     $('stage').addEventListener('pointerdown', function (e) {
       audioCtx(); startAmbience();
+      if (document.body.classList.contains('mobile') && !document.fullscreenElement &&
+        document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(function () { });
+      }
       if (e.target.closest('.btn') || e.target.closest('input') || e.target.closest('.card') ||
         e.target.closest('.hcard') || e.target.closest('.fs') || e.target.closest('.screen')) return;
-      if (S.phase === 'sweep') lockNow();
+      if (S.phase === 'sweep' && S.turnIsMine) lockNow();
     });
     document.addEventListener('keydown', function (e) {
       if (e.code === 'Space') {
@@ -1208,6 +1214,20 @@
     const st = $('stage');
     st.style.setProperty('--scale', 'scale(' + s + ')');
     st.style.transform = 'scale(' + s + ')';
+  }
+
+  /* telefon / kucuk ekran tespiti */
+  function applyEnv() {
+    const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    const touch = coarse || ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    const small = Math.min(window.innerWidth, window.innerHeight) < 780;
+    const m = touch || small;
+    document.body.classList.toggle('mobile', m);
+    document.body.classList.toggle('portrait', m && window.innerHeight > window.innerWidth);
+  }
+
+  function buzz(pattern) {
+    try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) { }
   }
 
   let lastV = null;
@@ -1231,8 +1251,10 @@
   function init() {
     buildScene();
     bind();
+    applyEnv();
     fit();
-    window.addEventListener('resize', fit);
+    window.addEventListener('resize', function () { applyEnv(); fit(); });
+    window.addEventListener('orientationchange', function () { setTimeout(function () { applyEnv(); fit(); }, 120); });
     try {
       const saved = localStorage.getItem('tokat-name');
       if (saved) $('nameInput').value = saved;

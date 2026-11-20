@@ -43,6 +43,9 @@ html, body {
   font-family: 'Kenney', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   user-select: none;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
 }
 body { cursor: crosshair; }
 
@@ -59,7 +62,27 @@ body { cursor: crosshair; }
   overflow: hidden;
   background: var(--bg);
   box-shadow: 0 30px 100px rgba(0, 0, 0, .9);
+  touch-action: none;
 }
+
+/* ==========================================================
+   DONDURME UYARISI
+   ========================================================== */
+.rotate {
+  position: fixed; inset: 0; z-index: 999;
+  display: none; place-items: center;
+  background: radial-gradient(120% 100% at 50% 30%, #1b1430, #06040c 80%);
+  text-align: center;
+}
+body.portrait .rotate { display: grid; }
+.rot-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 24px; }
+.rot-icon {
+  font-size: 64px; color: var(--gold);
+  animation: rotSpin 2.4s ease-in-out infinite;
+}
+@keyframes rotSpin { 0%, 60% { transform: rotate(0); } 80%, 100% { transform: rotate(90deg); } }
+.rot-title { font-family: 'Pixel'; font-size: 22px; letter-spacing: 2px; color: var(--cream); }
+.rot-sub { font-family: 'KenneyN'; font-size: 15px; color: rgba(242, 232, 216, .5); }
 
 /* ==========================================================
    SAHNE
@@ -686,3 +709,83 @@ body { cursor: crosshair; }
   58% { transform: var(--scale) translate(10px, 9px) rotate(.3deg); }
   78% { transform: var(--scale) translate(-5px, -4px) rotate(-.12deg); }
 }
+
+/* ==========================================================
+   TELEFON / KUCUK EKRAN
+   Sahne 1600x900 olceklendigi icin yazilar kucuk kalir;
+   burada HUD ve ekranlari buyutuyoruz.
+   ========================================================== */
+body.mobile .grain,
+body.mobile .haze,
+body.mobile .pixelstars { display: none; }
+
+body.mobile .fg { filter: brightness(.42) saturate(.85); }
+body.mobile .seat { filter: brightness(.55); }
+body.mobile .seat.far { filter: brightness(.4); }
+
+/* HUD */
+body.mobile .fighter { width: 640px; top: 14px; }
+body.mobile .fighter-name { font-size: 44px; max-width: 500px; }
+body.mobile .fighter-hp { font-size: 52px; }
+body.mobile .hp-track { height: 46px; border-width: 5px; }
+body.mobile .round-badge { font-size: 28px; top: 12px; padding: 10px 24px; border-width: 4px; }
+body.mobile .turn-badge { font-size: 46px; top: 104px; padding: 14px 44px; border-width: 4px; }
+
+body.mobile .meter { width: 1360px; bottom: 22px; padding: 18px 26px 14px; border-width: 4px; }
+body.mobile .meter-title { font-size: 28px; margin-bottom: 8px; }
+body.mobile .meter-pct { font-size: 54px; }
+body.mobile .meter-track { height: 100px; border-width: 4px; }
+body.mobile .meter-foot { font-size: 24px; margin-top: 8px; }
+body.mobile .meter-pin { width: 26px; height: 26px; }
+body.mobile .meter-needle { width: 12px; }
+body.mobile .meter-abroad { width: 14px; height: 52px; }
+body.mobile .abroad-tag { font-size: 20px; margin-bottom: 8px; }
+
+body.mobile .announce { font-size: 132px; }
+body.mobile .floater { font-size: 118px; }
+body.mobile .conn { font-size: 18px; bottom: 4px; }
+body.mobile .fs { width: 62px; height: 62px; font-size: 26px; }
+
+/* baslik ekrani */
+body.mobile .logo h1 { font-size: 196px; }
+body.mobile .logo-top { font-size: 24px; letter-spacing: 18px; }
+body.mobile .logo-sub { font-size: 34px; margin-top: 26px; }
+body.mobile .menu { gap: 16px; }
+body.mobile .btn { font-size: 40px; padding: 22px 48px; min-width: 460px; border-width: 4px; }
+body.mobile .btn small { font-size: 20px; }
+body.mobile .btn.small { font-size: 30px; padding: 16px 32px; min-width: 300px; }
+body.mobile .join-row input { width: 260px; font-size: 48px; }
+body.mobile .name-row input { width: 380px; font-size: 34px; }
+body.mobile .name-label { font-size: 26px; }
+body.mobile .hintline { font-size: 24px; max-width: 1060px; }
+body.mobile .credit { display: none; }
+body.mobile .title-fighters img { width: 640px; height: 640px; opacity: .28; }
+
+/* lobi */
+body.mobile .code { font-size: 150px; letter-spacing: 24px; }
+body.mobile .lobby-label { font-size: 24px; }
+body.mobile .lobby-sub { font-size: 27px; }
+body.mobile .lobby-link { font-size: 21px; }
+
+/* karakter secimi */
+body.mobile .select-wrap { width: 1520px; }
+body.mobile .banner span { font-size: 44px; }
+body.mobile .banner { padding: 12px 70px; }
+body.mobile .cards { gap: 10px; }
+body.mobile .card img { height: 196px; }
+body.mobile .card-name { font-size: 21px; }
+body.mobile .card-tag { font-size: 15px; }
+body.mobile .hands-head { font-size: 24px; margin: 16px 0 10px; }
+body.mobile .hcard { width: 118px; height: 118px; }
+body.mobile .select-foot { margin-top: 18px; }
+body.mobile .picked { font-size: 27px; min-width: 380px; }
+
+/* bitis */
+body.mobile .over-wrap h2 { font-size: 110px; }
+body.mobile .over-tag { font-size: 28px; }
+body.mobile .over-sub { font-size: 28px; }
+body.mobile .stat b { font-size: 52px; }
+body.mobile .over-foe { width: 300px; height: 300px; }
+
+body.mobile .screen { backdrop-filter: none; background: rgba(6, 4, 12, .94); }
+body.mobile .shelf-bottle, body.mobile .cprop { filter: none; }

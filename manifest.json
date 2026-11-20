@@ -1,0 +1,16 @@
+{
+  "name": "TOKAT BAR",
+  "short_name": "TOKAT",
+  "description": "Ayni WiFi'daki iki telefon/bilgisayarla 1v1 tokat duellosu",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b0912",
+  "theme_color": "#12101f",
+  "lang": "tr",
+  "icons": [
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
